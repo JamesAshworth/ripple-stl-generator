@@ -3,10 +3,12 @@ import { Download, Waves, Plus, Trash2 } from 'lucide-react';
 
 export default function RippleSTLGenerator() {
   const [sources, setSources] = useState([
-    { x: -90, y: -100, amplitude: 1 },
-    { x: -100, y: 90, amplitude: 0.8 },
-    { x: 90, y: 100, amplitude: 0.9 },
-    { x: 100, y: -90, amplitude: 1 }
+    { x: -90, y: -50, amplitude: 1 },
+    { x: -95, y: 0, amplitude: 1.2 },
+    { x: -100, y: 45, amplitude: 0.8 },
+    { x: 90, y: 50, amplitude: 0.9 },
+    { x: 95, y: 0, amplitude: 1.1 },
+    { x: 100, y: -45, amplitude: 1 }
   ]);
   const [size, setSize] = useState(200);
   const [thickness, setThickness] = useState(2);
@@ -14,11 +16,12 @@ export default function RippleSTLGenerator() {
   const [amplitude, setAmplitude] = useState(1);
   const [frequency, setFrequency] = useState(0.3);
   const [waveCount, setWaveCount] = useState(3);
+  const precision = 100;
 
   const addSource = () => {
     setSources([...sources, { 
-      x: (Math.random() - 0.5) * size, 
-      y: (Math.random() - 0.5) * size, 
+      x: 0, 
+      y: 0, 
       amplitude: 1
     }]);
   };
@@ -36,22 +39,32 @@ export default function RippleSTLGenerator() {
   };
 
   const generateRippleMesh = () => {
-    const topVertices = [];
-    const bottomVertices = [];
-    const faces = [];
+    const topVertices = {};
+    const radius = size / 2;
     
     // Generate top surface vertices with ripple effect from multiple sources
     for (let i = 0; i <= resolution; i++) {
       for (let j = 0; j <= resolution; j++) {
-        const x = (i / resolution - 0.5) * size;
-        const y = (j / resolution - 0.5) * size;
+        var checkX = (i / resolution - 0.5) * size;
+        var checkY = (j / resolution - 0.5) * size;
+        
+        // Skip points outside the circle
+        if (checkX**2 + checkY**2 >= radius**2)
+          continue;
+        
+        // Avoid floating point issues by rounding to a set fraction of a mm
+        const x = Math.round(checkX * precision) / precision;
+        const y = Math.round(checkY * precision) / precision;
+        
+        if (!(x in topVertices))
+          topVertices[x]={};
         
         // Sum ripples from all sources
         let z = 0;
         sources.forEach(source => {
           const dx = x - source.x;
           const dy = y - source.y;
-          const distFromSource = Math.sqrt(dx * dx + dy * dy);
+          const distFromSource = (dx ** 2 + dy ** 2) ** 0.5;
           
           // Multiple wave rings from this source
           for (let w = 0; w < waveCount; w++) {
@@ -62,85 +75,88 @@ export default function RippleSTLGenerator() {
         // Average by total number of waves
         z /= (waveCount * sources.length);
         
-        topVertices.push([x, y, z]);
-        bottomVertices.push([x, y, -thickness]); // Flat bottom at constant depth
+        topVertices[x][y] = z;
       }
     }
     
-    // Generate top surface faces (two triangles per grid square)
-    for (let i = 0; i < resolution; i++) {
-      for (let j = 0; j < resolution; j++) {
-        const v0 = i * (resolution + 1) + j;
-        const v1 = v0 + 1;
-        const v2 = v0 + (resolution + 1);
-        const v3 = v2 + 1;
+    const edgeVerticesX = {};
+    const edgeVerticesY = {};
+    
+    // Generate edge vertices on the top and bottom
+    for (let i = 0; i <= resolution; i++) {
+      for (let s = -1; s <= 1; s+=2) {
+        const x = Math.round((i / resolution - 0.5) * size * precision) / precision;
         
-        // Top surface triangles (normal pointing up)
-        faces.push([v0, v2, v1]);
-        faces.push([v1, v2, v3]);
-      }
-    }
-    
-    const topVertexCount = topVertices.length;
-    
-    // Generate bottom surface faces (two triangles per grid square)
-    for (let i = 0; i < resolution; i++) {
-      for (let j = 0; j < resolution; j++) {
-        const v0 = topVertexCount + i * (resolution + 1) + j;
-        const v1 = v0 + 1;
-        const v2 = v0 + (resolution + 1);
-        const v3 = v2 + 1;
+        const y = Math.round((radius ** 2 - x ** 2) ** 0.5 * s * precision) / precision;
         
-        // Bottom surface triangles (normal pointing down)
-        faces.push([v0, v1, v2]);
-        faces.push([v1, v3, v2]);
+        // We want to be more precise in the x than just precision for left and right, so only calculate top and bottom
+        if (Math.abs(x) > Math.abs(y))
+          continue;
+        
+        if (!(x in edgeVerticesX))
+          edgeVerticesX[x] = {};
+        if (!(y in edgeVerticesY))
+          edgeVerticesY[y] = [];
+        
+        // Sum ripples from all sources
+        let z = 0;
+        sources.forEach(source => {
+          const dx = x - source.x;
+          const dy = y - source.y;
+          const distFromSource = (dx ** 2 + dy ** 2) ** 0.5;
+          
+          // Multiple wave rings from this source
+          for (let w = 0; w < waveCount; w++) {
+            z += amplitude * source.amplitude * Math.sin(distFromSource * frequency + w * Math.PI / waveCount);
+          }
+        });
+        
+        // Average by total number of waves
+        z /= (waveCount * sources.length);
+        
+        edgeVerticesX[x][y] = z;
+        edgeVerticesY[y].push(x);
       }
     }
     
-    // Generate side walls
-    // Left wall (i = 0)
-    for (let j = 0; j < resolution; j++) {
-      const t0 = j;
-      const t1 = j + 1;
-      const b0 = topVertexCount + j;
-      const b1 = topVertexCount + j + 1;
-      faces.push([t0, t1, b0]);
-      faces.push([t1, b1, b0]);
+    // Generate edge vertices on the left and right
+    for (let i = 0; i <= resolution; i++) {
+      for (let s = -1; s <= 1; s+=2) {
+        const y = Math.round((i / resolution - 0.5) * size * precision) / precision;
+        
+        const x = Math.round((radius ** 2 - y ** 2) ** 0.5 * s * precision) / precision;
+        
+        // We want to be more precise in the y than just precision for top and bottom, so only calculate left and right
+        if (Math.abs(x) < Math.abs(y))
+          continue;
+        
+        if (!(x in edgeVerticesX))
+          edgeVerticesX[x] = {};
+        if (!(y in edgeVerticesY))
+          edgeVerticesY[y] = [];
+        
+        // Sum ripples from all sources
+        let z = 0;
+        sources.forEach(source => {
+          const dx = x - source.x;
+          const dy = y - source.y;
+          const distFromSource = (dx ** 2 + dy ** 2) ** 0.5;
+          
+          // Multiple wave rings from this source
+          for (let w = 0; w < waveCount; w++) {
+            z += amplitude * source.amplitude * Math.sin(distFromSource * frequency + w * Math.PI / waveCount);
+          }
+        });
+        
+        // Average by total number of waves
+        z /= (waveCount * sources.length);
+        
+        edgeVerticesX[x][y] = z;
+        edgeVerticesY[y].push(x);
+      }
     }
     
-    // Right wall (i = resolution)
-    for (let j = 0; j < resolution; j++) {
-      const t0 = resolution * (resolution + 1) + j;
-      const t1 = resolution * (resolution + 1) + j + 1;
-      const b0 = topVertexCount + resolution * (resolution + 1) + j;
-      const b1 = topVertexCount + resolution * (resolution + 1) + j + 1;
-      faces.push([t0, b0, t1]);
-      faces.push([t1, b0, b1]);
-    }
-    
-    // Front wall (j = 0)
-    for (let i = 0; i < resolution; i++) {
-      const t0 = i * (resolution + 1);
-      const t1 = (i + 1) * (resolution + 1);
-      const b0 = topVertexCount + i * (resolution + 1);
-      const b1 = topVertexCount + (i + 1) * (resolution + 1);
-      faces.push([t0, b0, t1]);
-      faces.push([t1, b0, b1]);
-    }
-    
-    // Back wall (j = resolution)
-    for (let i = 0; i < resolution; i++) {
-      const t0 = i * (resolution + 1) + resolution;
-      const t1 = (i + 1) * (resolution + 1) + resolution;
-      const b0 = topVertexCount + i * (resolution + 1) + resolution;
-      const b1 = topVertexCount + (i + 1) * (resolution + 1) + resolution;
-      faces.push([t0, t1, b0]);
-      faces.push([t1, b1, b0]);
-    }
-    
-    const allVertices = [...topVertices, ...bottomVertices];
-    
-    return { vertices: allVertices, faces };
+    return { topVertices, edgeVerticesX, edgeVerticesY };
   };
 
   const calculateNormal = (v0, v1, v2) => {
@@ -166,7 +182,440 @@ export default function RippleSTLGenerator() {
   };
 
   const generateSTL = () => {
-    const { vertices, faces } = generateRippleMesh();
+    const { topVertices, edgeVerticesX, edgeVerticesY } = generateRippleMesh();
+    
+    const topFaces = [];
+    const radius = size / 2;
+    
+    // Calculate the top faces where at least three points of a given grid square are defined
+    const sortedX = Object.keys(topVertices).sort(function(a, b) { return a - b; });
+    for (let i = 0; i < sortedX.length - 1; i++) {
+      const x0 = sortedX[i];
+      const x1 = sortedX[i + 1];
+      const sortedY = [...new Set([...Object.keys(topVertices[x0]), ...Object.keys(topVertices[x1])])].sort(function(a, b) { return a - b; });
+      
+      for (let j = 0; j < sortedY.length - 1; j++) {
+        const y0 = sortedY[j];
+        const y1 = sortedY[j + 1];
+        
+        // SW quadrant (or intersecting centre lines)
+        if (x0 < 0 && y0 < 0) { 
+          // Only two points defined, skip
+          if (!(y1 in topVertices[x0]))
+            continue;
+          
+          // Full square, generate outer triangle
+          if (y0 in topVertices[x0])
+          {
+            topFaces.push([[x0, y0, topVertices[x0][y0]], [x0, y1, topVertices[x0][y1]], [x1, y0, topVertices[x1][y0]]]);
+          }
+          
+          // Generate inner triangle
+          topFaces.push([[x0, y1, topVertices[x0][y1]], [x1, y1, topVertices[x1][y1]], [x1, y0, topVertices[x1][y0]]]);
+        }
+        // NE quadrant
+        else if (x1 > 0 && y1 > 0) { 
+          // Only two points defined, skip
+          if (!(y0 in topVertices[x1]))
+            continue;
+          
+          // Full square, generate outer triangle
+          if (y1 in topVertices[x1])
+          {
+            topFaces.push([[x0, y1, topVertices[x0][y1]], [x1, y1, topVertices[x1][y1]], [x1, y0, topVertices[x1][y0]]]);
+          }
+          
+          // Generate inner triangle
+          topFaces.push([[x0, y0, topVertices[x0][y0]], [x0, y1, topVertices[x0][y1]], [x1, y0, topVertices[x1][y0]]]);
+        }
+        // NW quadrant
+        else if (x0 < 0 && y1 > 0) { 
+          // Only two points defined, skip
+          if (!(y0 in topVertices[x0]))
+            continue;
+          
+          // Full square, generate outer triangle
+          if (y1 in topVertices[x0])
+          {
+            topFaces.push([[x0, y1, topVertices[x0][y1]], [x1, y1, topVertices[x1][y1]], [x0, y0, topVertices[x0][y0]]]);
+          }
+          
+          // Generate inner triangle
+          topFaces.push([[x1, y1, topVertices[x1][y1]], [x1, y0, topVertices[x1][y0]], [x0, y0, topVertices[x0][y0]]]);
+        }
+        // SE quadrant, by elimination
+        else { 
+          // Only two points defined, skip
+          if (!(y1 in topVertices[x1]))
+            continue;
+          
+          // Full square, generate outer triangle
+          if (y0 in topVertices[x1])
+          {
+            topFaces.push([[x1, y1, topVertices[x1][y1]], [x1, y0, topVertices[x1][y0]], [x0, y0, topVertices[x0][y0]]]);
+          }
+          
+          // Generate inner triangle
+          topFaces.push([[x0, y1, topVertices[x0][y1]], [x1, y1, topVertices[x1][y1]], [x0, y0, topVertices[x0][y0]]]);
+        }
+      }
+    }
+    
+    // Generate all remaining triangles where the circumference has cut the grid
+    for (let i = 0; i <= resolution - 1; i++) {
+      for (let j = 0; j <= resolution - 1; j++) {
+        const x0 = Math.round((i / resolution - 0.5) * size * precision) / precision;
+        const y0 = Math.round((j / resolution - 0.5) * size * precision) / precision;
+        
+        const x1 = Math.round(((i + 1) / resolution - 0.5) * size * precision) / precision;
+        const y1 = Math.round(((j + 1) / resolution - 0.5) * size * precision) / precision;
+        
+        // SW quadrant (or intersecting centre lines) where bottom left is outside the circle
+        if (x0 < 0 && y0 < 0 && x1 in topVertices && y1 in topVertices[x1] && (!(x0 in topVertices) || !(y0 in topVertices[x0]))) {
+          // Only missing one point here, so we already have top right triangle
+          if (y0 in topVertices[x1] && x0 in topVertices && y1 in topVertices[x0]) {
+            // We have a suitable point in line with x but crimped on the bottom
+            if (x0 in edgeVerticesX) {
+              const newY0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a >= y0 && a < y1; })[0];
+              topFaces.push([[x0, newY0, edgeVerticesX[x0][newY0]], [x0, y1, topVertices[x0][y1]], [x1, y0, topVertices[x1][y0]]]);
+            }
+            // We have a suitable point in line with y but crimped on the left
+            else if (y0 in edgeVerticesY) {
+              const newX0 = edgeVerticesY[y0].filter(function(a) { return a >= x0 && a < x1; })[0];
+              topFaces.push([[newX0, y0, edgeVerticesX[newX0][y0]], [x0, y1, topVertices[x0][y1]], [x1, y0, topVertices[x1][y0]]]);
+            }
+            // The dreaded pentagon
+            else {
+              const yBx1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a < 0; })[0];
+              const xLy1 = edgeVerticesY[y1].filter(function(a) { return a < 0; })[0];
+              
+              // Generate "inner" triangle
+              topFaces.push([[x1, yBx1, edgeVerticesX[x1][yBx1]], [x0, y1, topVertices[x0][y1]], [x1, y0, topVertices[x1][y0]]]);
+              
+              // Generate "outer" triangle
+              topFaces.push([[x1, yBx1, edgeVerticesX[x1][yBx1]], [xLy1, y1, edgeVerticesX[xLy1][y1]], [x0, y1, topVertices[x0][y1]]]);
+            }
+          }
+          // Missing two points on the left, so make an awkward quadrilateral and split it accordingly
+          else if (y0 in topVertices[x1]) {
+            const x0y0 = edgeVerticesY[y0].filter(function(a) { return a >= x0 && a < x1; })[0];
+            const x0y1 = edgeVerticesY[y1].filter(function(a) { return a >= x0 && a < x1; })[0];
+            
+            // Generate outer triangle
+            topFaces.push([[x0y0, y0, edgeVerticesX[x0y0][y0]], [x0y1, y1, edgeVerticesX[x0y1][y1]], [x1, y0, topVertices[x1][y0]]]);
+            
+            // Generate inner triangle
+            topFaces.push([[x0y1, y1, edgeVerticesX[x0y1][y1]], [x1, y1, topVertices[x1][y1]], [x1, y0, topVertices[x1][y0]]]);
+          }
+          // Missing two points on the bottom, so make an awkward quadrilateral and split it accordingly
+          else if (x0 in topVertices && y1 in topVertices[x0]) {
+            const y0x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a >= y0 && a < y1; })[0];
+            const y0x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a >= y0 && a < y1; })[0];
+            
+            // Generate outer triangle
+            topFaces.push([[x0, y0x0, edgeVerticesX[x0][y0x0]], [x0, y1, topVertices[x0][y1]], [x1, y0x1, edgeVerticesX[x1][y0x1]]]);
+            
+            // Generate inner triangle
+            topFaces.push([[x0, y1, topVertices[x0][y1]], [x1, y1, topVertices[x1][y1]], [x1, y0x1, edgeVerticesX[x1][y0x1]]]);
+          }
+          // Missing three points, so make a triangle and call it a day
+          else {
+            // Point directly below the top-right corner
+            if (x1 in edgeVerticesX) {
+              const y0x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a < 0; })[0];
+              
+              // Point directly in-line with the left edge
+              if (x0 in edgeVerticesX) {
+                const y1x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a < 0; })[0];
+                
+                // Generate inner triangle
+                topFaces.push([[x0, y1x0, edgeVerticesX[x0][y1x0]], [x1, y1, topVertices[x1][y1]], [x1, y0x1, edgeVerticesX[x1][y0x1]]]);
+              }
+              // Point directly to the left of the top-right corner
+              else if (y1 in edgeVerticesY) {
+                const x0y1 = edgeVerticesY[y1].filter(function(a) { return a < 0; })[0];
+                
+                // Generate inner triangle
+                topFaces.push([[x0y1, y1, edgeVerticesX[x0y1][y1]], [x1, y1, topVertices[x1][y1]], [x1, y0x1, edgeVerticesX[x1][y0x1]]]);
+              }
+            }
+            // Point directly to the left of the top-right corner, and a point directly in-line with the bottom edge
+            else if (y0 in edgeVerticesY && y1 in edgeVerticesY) {
+              const x0y1 = edgeVerticesY[y1].filter(function(a) { return a < 0; })[0];
+              const x1y0 = edgeVerticesY[y0].filter(function(a) { return a < 0; })[0];
+              
+              // Generate inner triangle
+              topFaces.push([[x0y1, y1, edgeVerticesX[x0y1][y1]], [x1, y1, topVertices[x1][y1]], [x1y0, y0, edgeVerticesX[x1y0][y0]]]);
+            }
+          }
+        }
+        // NE quadrant where top right is outside the circle
+        else if (x1 > 0 && y1 > 0 && x0 in topVertices && y0 in topVertices[x0] && (!(x1 in topVertices) || !(y1 in topVertices[x1]))) {
+          // Only missing one point here, so we already have bottom left triangle
+          if (y1 in topVertices[x0] && x1 in topVertices && y0 in topVertices[x1]) {
+            // We have a suitable point in line with x but crimped on the top
+            if (x1 in edgeVerticesX) {
+              const newY1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a > y0 && a <= y1; })[0];
+              topFaces.push([[x1, newY1, edgeVerticesX[x1][newY1]], [x1, y0, topVertices[x1][y0]], [x0, y1, topVertices[x0][y1]]]);
+            }
+            // We have a suitable point in line with y but crimped on the right
+            else if (y1 in edgeVerticesY) {
+              const newX1 = edgeVerticesY[y1].filter(function(a) { return a > x0 && a <= x1; })[0];
+              topFaces.push([[newX1, y1, edgeVerticesX[newX1][y1]], [x1, y0, topVertices[x1][y0]], [x0, y1, topVertices[x0][y1]]]);
+            }
+            // The dreaded pentagon
+            else {
+              const yTx0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a > 0; })[0];
+              const xRy0 = edgeVerticesY[y0].filter(function(a) { return a > 0; })[0];
+              
+              // Generate "inner" triangle
+              topFaces.push([[x0, yTx0, edgeVerticesX[x0][yTx0]], [x1, y0, topVertices[x1][y0]], [x0, y1, topVertices[x0][y1]]]);
+              
+              // Generate "outer" triangle
+              topFaces.push([[x0, yTx0, edgeVerticesX[x0][yTx0]], [xRy0, y0, edgeVerticesX[xRy0][y0]], [x1, y0, topVertices[x1][y0]]]);
+            }
+          }
+          // Missing two points on the right, so make an awkward quadrilateral and split it accordingly
+          else if (y1 in topVertices[x0]) {
+            const x1y1 = edgeVerticesY[y1].filter(function(a) { return a > x0 && a <= x1; })[0];
+            const x1y0 = edgeVerticesY[y0].filter(function(a) { return a > x0 && a <= x1; })[0];
+            
+            // Generate outer triangle
+            topFaces.push([[x1y1, y1, edgeVerticesX[x1y1][y1]], [x1y0, y0, edgeVerticesX[x1y0][y0]], [x0, y1, topVertices[x0][y1]]]);
+            
+            // Generate inner triangle
+            topFaces.push([[x1y0, y0, edgeVerticesX[x1y0][y0]], [x0, y0, topVertices[x0][y0]], [x0, y1, topVertices[x0][y1]]]);
+          }
+          // Missing two points on the top, so make an awkward quadrilateral and split it accordingly
+          else if (x1 in topVertices && y0 in topVertices[x1]) {
+            const y1x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a > y0 && a <= y1; })[0];
+            const y1x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a > y0 && a <= y1; })[0];
+            
+            // Generate outer triangle
+            topFaces.push([[x1, y1x1, edgeVerticesX[x1][y1x1]], [x1, y0, topVertices[x1][y0]], [x0, y1x0, edgeVerticesX[x0][y1x0]]]);
+            
+            // Generate inner triangle
+            topFaces.push([[x1, y0, topVertices[x1][y0]], [x0, y0, topVertices[x0][y0]], [x0, y1x0, edgeVerticesX[x0][y1x0]]]);
+          }
+          // Missing three points, so make a triangle and call it a day
+          else {
+            // Point directly above the bottom-left corner
+            if (x0 in edgeVerticesX) {
+              const y1x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a > 0; })[0];
+              
+              // Point directly in-line with the right edge
+              if (x1 in edgeVerticesX) {
+                const y0x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a > 0; })[0];
+                
+                // Generate inner triangle
+                topFaces.push([[x1, y0x1, edgeVerticesX[x1][y0x1]], [x0, y0, topVertices[x0][y0]], [x0, y1x0, edgeVerticesX[x0][y1x0]]]);
+              }
+              // Point directly to the right of the bottom-left corner
+              else if (y0 in edgeVerticesY) {
+                const x1y0 = edgeVerticesY[y0].filter(function(a) { return a > 0; })[0];
+                
+                // Generate inner triangle
+                topFaces.push([[x1y0, y0, edgeVerticesX[x1y0][y0]], [x0, y0, topVertices[x0][y0]], [x0, y1x0, edgeVerticesX[x0][y1x0]]]);
+              }
+            }
+            // Point directly to the right of the bottom-left corner, and a point directly in-line with the top edge
+            else if (y0 in edgeVerticesY && y1 in edgeVerticesY) {
+              const x1y0 = edgeVerticesY[y0].filter(function(a) { return a > 0; })[0];
+              const x0y1 = edgeVerticesY[y1].filter(function(a) { return a > 0; })[0];
+              
+              // Generate inner triangle
+              topFaces.push([[x1y0, y0, edgeVerticesX[x1y0][y0]], [x0, y0, topVertices[x0][y0]], [x0y1, y1, edgeVerticesX[x0y1][y1]]]);
+            }
+          }
+        }
+        // NW quadrant where top left is outside the circle
+        else if (x0 < 0 && y1 > 0 && x1 in topVertices && y0 in topVertices[x1] && (!(x0 in topVertices) || !(y1 in topVertices[x0]))) {
+          // Only missing one point here, so we already have bottom right triangle
+          if (y1 in topVertices[x1] && x0 in topVertices && y0 in topVertices[x0]) {
+            // We have a suitable point in line with x but crimped on the top
+            if (x0 in edgeVerticesX) {
+              const newY1 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a > y0 && a <= y1; })[0];
+              topFaces.push([[x0, newY1, edgeVerticesX[x0][newY1]], [x1, y1, topVertices[x1][y1]], [x0, y0, topVertices[x0][y0]]]);
+            }
+            // We have a suitable point in line with y but crimped on the left
+            else if (y1 in edgeVerticesY) {
+              const newX0 = edgeVerticesY[y1].filter(function(a) { return a >= x0 && a < x1; })[0];
+              topFaces.push([[newX0, y1, edgeVerticesX[newX0][y1]], [x1, y1, topVertices[x1][y1]], [x0, y0, topVertices[x0][y0]]]);
+            }
+            // The dreaded pentagon
+            else {
+              const yTx1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a > 0; })[0];
+              const xLy0 = edgeVerticesY[y0].filter(function(a) { return a < 0; })[0];
+              
+              // Generate "inner" triangle
+              topFaces.push([[xLy0, y0, edgeVerticesX[xLy0][y0]], [x1, y1, topVertices[x1][y1]], [x0, y0, topVertices[x0][y0]]]);
+              
+              // Generate "outer" triangle
+              topFaces.push([[xLy0, y0, edgeVerticesX[xLy0][y0]], [x1, yTx1, edgeVerticesX[x1][yTx1]], [x1, y1, topVertices[x1][y1]]]);
+            }
+          }
+          // Missing two points on the left, so make an awkward quadrilateral and split it accordingly
+          else if (y1 in topVertices[x1]) {
+            const x0y1 = edgeVerticesY[y1].filter(function(a) { return a >= x0 && a < x1; })[0];
+            const x0y0 = edgeVerticesY[y0].filter(function(a) { return a >= x0 && a < x1; })[0];
+            
+            // Generate outer triangle
+            topFaces.push([[x0y1, y1, edgeVerticesX[x0y1][y1]], [x1, y1, topVertices[x1][y1]], [x0y0, y0, edgeVerticesX[x0y0][y0]]]);
+            
+            // Generate inner triangle
+            topFaces.push([[x1, y1, topVertices[x1][y1]], [x1, y0, topVertices[x1][y0]], [x0y0, y0, edgeVerticesX[x0y0][y0]]]);
+          }
+          // Missing two points on the top, so make an awkward quadrilateral and split it accordingly
+          else if (x0 in topVertices && y0 in topVertices[x0]) {
+            const y1x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a > y0 && a <= y1; })[0];
+            const y1x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a > y0 && a <= y1; })[0];
+            
+            // Generate outer triangle
+            topFaces.push([[x1, y1x1, edgeVerticesX[x1][y1x1]], [x0, y0, topVertices[x0][y0]], [x0, y1x0, edgeVerticesX[x0][y1x0]]]);
+            
+            // Generate inner triangle
+            topFaces.push([[x1, y0, topVertices[x1][y0]], [x0, y0, topVertices[x0][y0]], [x1, y1x1, edgeVerticesX[x1][y1x1]]]);
+          }
+          // Missing three points, so make a triangle and call it a day
+          else {
+            // Point directly above the bottom-right corner
+            if (x1 in edgeVerticesX) {
+              const y1x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a > 0; })[0];
+              
+              // Point directly in-line with the left edge
+              if (x0 in edgeVerticesX) {
+                const y0x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a > 0; })[0];
+                
+                // Generate inner triangle
+                topFaces.push([[x1, y1x1, edgeVerticesX[x1][y1x1]], [x1, y0, topVertices[x1][y0]], [x0, y0x0, edgeVerticesX[x0][y0x0]]]);
+              }
+              // Point directly to the left of the bottom-right corner
+              else if (y0 in edgeVerticesY) {
+                const x0y0 = edgeVerticesY[y0].filter(function(a) { return a < 0; })[0];
+                
+                // Generate inner triangle
+                topFaces.push([[x0y0, y0, edgeVerticesX[x0y0][y0]], [x1, y1x1, edgeVerticesX[x1][y1x1]], [x1, y0, topVertices[x1][y0]]]);
+              }
+            }
+            // Point directly to the left of the bottom-right corner, and a point directly in-line with the top edge
+            else if (y0 in edgeVerticesY && y1 in edgeVerticesY) {
+              const x0y0 = edgeVerticesY[y0].filter(function(a) { return a < 0; })[0];
+              const x1y1 = edgeVerticesY[y1].filter(function(a) { return a < 0; })[0];
+              
+              // Generate inner triangle
+              topFaces.push([[x0y0, y0, edgeVerticesX[x0y0][y0]], [x1y1, y1, edgeVerticesX[x1y1][y1]], [x1, y0, topVertices[x1][y0]]]);
+            }
+          }
+        }
+        // SE quadrant where bottom right is outside the circle
+        else if (x1 > 0 && y0 < 0 && x0 in topVertices && y1 in topVertices[x0] && (!(x1 in topVertices) || !(y0 in topVertices[x1]))) {
+          // Only missing one point here, so we already have top left triangle
+          if (y0 in topVertices[x0] && x1 in topVertices && y1 in topVertices[x1]) {
+            // We have a suitable point in line with x but crimped on the bottom
+            if (x1 in edgeVerticesX) {
+              const newY0 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a >= y0 && a < y1; })[0];
+              topFaces.push([[x1, newY0, edgeVerticesX[x1][newY0]], [x0, y0, topVertices[x0][y0]], [x1, y1, topVertices[x1][y1]]]);
+            }
+            // We have a suitable point in line with y but crimped on the right
+            else if (y0 in edgeVerticesY) {
+              const newX1 = edgeVerticesY[y0].filter(function(a) { return a > x0 && a <= x1; })[0];
+              topFaces.push([[newX1, y0, edgeVerticesX[newX1][y0]], [x0, y0, topVertices[x0][y0]], [x1, y1, topVertices[x1][y1]]]);
+            }
+            // The dreaded pentagon
+            else {
+              const yBx0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a < 0; })[0];
+              const xRy1 = edgeVerticesY[y1].filter(function(a) { return a > 0; })[0];
+              
+              // Generate "inner" triangle
+              topFaces.push([[xRy1, y1, edgeVerticesX[xRy1][y1]], [x0, y0, topVertices[x0][y0]], [x1, y1, topVertices[x1][y1]]]);
+              
+              // Generate "outer" triangle
+              topFaces.push([[xRy1, y1, edgeVerticesX[xRy1][y1]], [x0, yBx0, edgeVerticesX[x0][yBx0]], [x0, y0, topVertices[x0][y0]]]);
+            }
+          }
+          // Missing two points on the right, so make an awkward quadrilateral and split it accordingly
+          else if (y0 in topVertices[x0]) {
+            const x1y0 = edgeVerticesY[y0].filter(function(a) { return a > x0 && a <= x1; })[0];
+            const x1y1 = edgeVerticesY[y1].filter(function(a) { return a > x0 && a <= x1; })[0];
+            
+            // Generate outer triangle
+            topFaces.push([[x1y0, y0, edgeVerticesX[x1y0][y0]], [x0, y0, topVertices[x0][y0]], [x1y1, y1, edgeVerticesX[x1y1][y1]]]);
+            
+            // Generate inner triangle
+            topFaces.push([[x0, y0, topVertices[x0][y0]], [x0, y1, topVertices[x0][y1]], [x1y1, y1, edgeVerticesX[x1y1][y1]]]);
+          }
+          // Missing two points on the bottom, so make an awkward quadrilateral and split it accordingly
+          else if (x1 in topVertices && y1 in topVertices[x1]) {
+            const y0x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a >= y0 && a < y1; })[0];
+            const y0x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a >= y0 && a < y1; })[0];
+            
+            // Generate outer triangle
+            topFaces.push([[x0, y0x0, edgeVerticesX[x0][y0x0]], [x1, y1, topVertices[x1][y1]], [x1, y0x1, edgeVerticesX[x1][y0x1]]]);
+            
+            // Generate inner triangle
+            topFaces.push([[x0, y1, topVertices[x0][y1]], [x1, y1, topVertices[x1][y1]], [x0, y0x0, edgeVerticesX[x0][y0x0]]]);
+          }
+          // Missing three points, so make a triangle and call it a day
+          else {
+            // Point directly below the top-left corner
+            if (x0 in edgeVerticesX) {
+              const y0x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a < 0; })[0];
+              
+              // Point directly in-line with the right edge
+              if (x1 in edgeVerticesX) {
+                const y1x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a < 0; })[0];
+                
+                // Generate inner triangle
+                topFaces.push([[x0, y0x0, edgeVerticesX[x0][y0x0]], [x0, y1, topVertices[x0][y1]], [x1, y1x1, edgeVerticesX[x1][y1x1]]]);
+              }
+              // Point directly to the right of the top-left corner
+              else if (y1 in edgeVerticesY) {
+                const x1y1 = edgeVerticesY[y1].filter(function(a) { return a > 0; })[0];
+                
+                // Generate inner triangle
+                topFaces.push([[x1y1, y1, edgeVerticesX[x1y1][y1]], [x0, y0x0, edgeVerticesX[x0][y0x0]], [x0, y1, topVertices[x0][y1]]]);
+              }
+            }
+            // Point directly to the right of the top-left corner, and a point directly in-line with the bottom edge
+            else if (y0 in edgeVerticesY && y1 in edgeVerticesY) {
+              const x1y1 = edgeVerticesY[y1].filter(function(a) { return a > 0; })[0];
+              const x0y0 = edgeVerticesY[y0].filter(function(a) { return a > 0; })[0];
+              
+              // Generate inner triangle
+              topFaces.push([[x1y1, y1, edgeVerticesX[x1y1][y1]], [x0y0, y0, edgeVerticesX[x0y0][y0]], [x0, y1, topVertices[x0][y1]]]);
+            }
+          }
+        }
+      }
+    }
+    
+    const faces = [];
+    
+    topFaces.forEach(topFace => {
+      faces.push(topFace);
+      faces.push([[topFace[0][0], topFace[0][1], -thickness], [topFace[2][0], topFace[2][1], -thickness], [topFace[1][0], topFace[1][1], -thickness]]);
+    });
+    
+    // Calculate the edge faces around the top and bottom
+    for (let s = -1; s <= 1; s += 2) {
+      const sortedX = Object.keys(edgeVerticesX).sort(function(a, b) { return a - b; });
+      for (let i = 0; i < sortedX.length - 1; i++) {
+        const x0 = sortedX[i];
+        const x1 = sortedX[i + 1];
+        const y0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a * s >= 0; })[0];
+        const y1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a * s >= 0; })[0];
+        
+        // Always clockwise
+        if (s > 0) {
+          faces.push([[x0, y0, -thickness], [x1, y1, -thickness], [x1, y1, edgeVerticesX[x1][y1]]]);
+          faces.push([[x0, y0, -thickness], [x1, y1, edgeVerticesX[x1][y1]], [x0, y0, edgeVerticesX[x0][y0]]]);
+        }
+        else {
+          faces.push([[x0, y0, -thickness], [x1, y1, edgeVerticesX[x1][y1]], [x1, y1, -thickness]]);
+          faces.push([[x0, y0, -thickness], [x0, y0, edgeVerticesX[x0][y0]], [x1, y1, edgeVerticesX[x1][y1]]]);
+        }
+      }
+    }
     
     // Create binary STL
     const triangleCount = faces.length;
@@ -186,9 +635,9 @@ export default function RippleSTLGenerator() {
     // Write triangles
     let offset = 84;
     faces.forEach(face => {
-      const v0 = vertices[face[0]];
-      const v1 = vertices[face[1]];
-      const v2 = vertices[face[2]];
+      const v0 = face[0];
+      const v1 = face[1];
+      const v2 = face[2];
       
       const normal = calculateNormal(v0, v1, v2);
       
