@@ -324,19 +324,19 @@ export default function RippleSTLGenerator() {
             if (x1 in edgeVerticesX) {
               const y0x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a < 0; })[0];
               
-              // Point directly in-line with the left edge
-              if (x0 in edgeVerticesX) {
-                const y1x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a < 0; })[0];
-                
-                // Generate inner triangle
-                topFaces.push([[x0, y1x0, edgeVerticesX[x0][y1x0]], [x1, y1, topVertices[x1][y1]], [x1, y0x1, edgeVerticesX[x1][y0x1]]]);
-              }
               // Point directly to the left of the top-right corner
-              else if (y1 in edgeVerticesY) {
+              if (y1 in edgeVerticesY) {
                 const x0y1 = edgeVerticesY[y1].filter(function(a) { return a < 0; })[0];
                 
                 // Generate inner triangle
                 topFaces.push([[x0y1, y1, edgeVerticesX[x0y1][y1]], [x1, y1, topVertices[x1][y1]], [x1, y0x1, edgeVerticesX[x1][y0x1]]]);
+              }
+              // Point directly in-line with the left edge
+              else if (x0 in edgeVerticesX) {
+                const y1x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a < 0; })[0];
+                
+                // Generate inner triangle
+                topFaces.push([[x0, y1x0, edgeVerticesX[x0][y1x0]], [x1, y1, topVertices[x1][y1]], [x1, y0x1, edgeVerticesX[x1][y0x1]]]);
               }
             }
             // Point directly to the left of the top-right corner, and a point directly in-line with the bottom edge
@@ -403,19 +403,19 @@ export default function RippleSTLGenerator() {
             if (x0 in edgeVerticesX) {
               const y1x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a > 0; })[0];
               
-              // Point directly in-line with the right edge
-              if (x1 in edgeVerticesX) {
-                const y0x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a > 0; })[0];
-                
-                // Generate inner triangle
-                topFaces.push([[x1, y0x1, edgeVerticesX[x1][y0x1]], [x0, y0, topVertices[x0][y0]], [x0, y1x0, edgeVerticesX[x0][y1x0]]]);
-              }
               // Point directly to the right of the bottom-left corner
-              else if (y0 in edgeVerticesY) {
+              if (y0 in edgeVerticesY) {
                 const x1y0 = edgeVerticesY[y0].filter(function(a) { return a > 0; })[0];
                 
                 // Generate inner triangle
                 topFaces.push([[x1y0, y0, edgeVerticesX[x1y0][y0]], [x0, y0, topVertices[x0][y0]], [x0, y1x0, edgeVerticesX[x0][y1x0]]]);
+              }
+              // Point directly in-line with the right edge
+              else if (x1 in edgeVerticesX) {
+                const y0x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a > 0; })[0];
+                
+                // Generate inner triangle
+                topFaces.push([[x1, y0x1, edgeVerticesX[x1][y0x1]], [x0, y0, topVertices[x0][y0]], [x0, y1x0, edgeVerticesX[x0][y1x0]]]);
               }
             }
             // Point directly to the right of the bottom-left corner, and a point directly in-line with the top edge
@@ -482,19 +482,19 @@ export default function RippleSTLGenerator() {
             if (x1 in edgeVerticesX) {
               const y1x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a > 0; })[0];
               
-              // Point directly in-line with the left edge
-              if (x0 in edgeVerticesX) {
-                const y0x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a > 0; })[0];
-                
-                // Generate inner triangle
-                topFaces.push([[x1, y1x1, edgeVerticesX[x1][y1x1]], [x1, y0, topVertices[x1][y0]], [x0, y0x0, edgeVerticesX[x0][y0x0]]]);
-              }
               // Point directly to the left of the bottom-right corner
-              else if (y0 in edgeVerticesY) {
+              if (y0 in edgeVerticesY) {
                 const x0y0 = edgeVerticesY[y0].filter(function(a) { return a < 0; })[0];
                 
                 // Generate inner triangle
                 topFaces.push([[x0y0, y0, edgeVerticesX[x0y0][y0]], [x1, y1x1, edgeVerticesX[x1][y1x1]], [x1, y0, topVertices[x1][y0]]]);
+              }
+              // Point directly in-line with the left edge
+              else if (x0 in edgeVerticesX) {
+                const y0x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a > 0; })[0];
+                
+                // Generate inner triangle
+                topFaces.push([[x1, y1x1, edgeVerticesX[x1][y1x1]], [x1, y0, topVertices[x1][y0]], [x0, y0x0, edgeVerticesX[x0][y0x0]]]);
               }
             }
             // Point directly to the left of the bottom-right corner, and a point directly in-line with the top edge
@@ -561,19 +561,19 @@ export default function RippleSTLGenerator() {
             if (x0 in edgeVerticesX) {
               const y0x0 = Object.keys(edgeVerticesX[x0]).filter(function(a) { return a < 0; })[0];
               
-              // Point directly in-line with the right edge
-              if (x1 in edgeVerticesX) {
-                const y1x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a < 0; })[0];
-                
-                // Generate inner triangle
-                topFaces.push([[x0, y0x0, edgeVerticesX[x0][y0x0]], [x0, y1, topVertices[x0][y1]], [x1, y1x1, edgeVerticesX[x1][y1x1]]]);
-              }
               // Point directly to the right of the top-left corner
-              else if (y1 in edgeVerticesY) {
+              if (y1 in edgeVerticesY) {
                 const x1y1 = edgeVerticesY[y1].filter(function(a) { return a > 0; })[0];
                 
                 // Generate inner triangle
                 topFaces.push([[x1y1, y1, edgeVerticesX[x1y1][y1]], [x0, y0x0, edgeVerticesX[x0][y0x0]], [x0, y1, topVertices[x0][y1]]]);
+              }
+              // Point directly in-line with the right edge
+              else if (x1 in edgeVerticesX) {
+                const y1x1 = Object.keys(edgeVerticesX[x1]).filter(function(a) { return a < 0; })[0];
+                
+                // Generate inner triangle
+                topFaces.push([[x0, y0x0, edgeVerticesX[x0][y0x0]], [x0, y1, topVertices[x0][y1]], [x1, y1x1, edgeVerticesX[x1][y1x1]]]);
               }
             }
             // Point directly to the right of the top-left corner, and a point directly in-line with the bottom edge
