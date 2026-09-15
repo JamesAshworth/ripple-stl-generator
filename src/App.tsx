@@ -1,28 +1,71 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Download, Waves, Plus, Trash2 } from 'lucide-react';
+
+function NumberSlider({ label, min, max, step = 1, value, onChange, hint, compact = false }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+
+  const handleText = (e) => {
+    setText(e.target.value);
+    const parsed = Number(e.target.value);
+    if (e.target.value !== '' && !Number.isNaN(parsed)) {
+      onChange(parsed);
+    }
+  };
+
+  return (
+    <div>
+      <label className={compact ? 'block text-gray-600 mb-1' : 'block text-sm font-medium text-gray-700 mb-2'}>
+        {label}
+      </label>
+      <div className="flex items-center gap-2">
+        <input
+          type="range"
+          tabIndex={-1}
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="w-full"
+        />
+        <input
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={text}
+          onChange={handleText}
+          className={`${compact ? 'w-14 px-1 py-0.5' : 'w-20 px-2 py-1'} border border-gray-300 rounded text-right text-gray-700`}
+        />
+      </div>
+      {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}
+    </div>
+  );
+}
 
 export default function RippleSTLGenerator() {
   const [sources, setSources] = useState([
-    { x: -90, y: -50, amplitude: 1 },
-    { x: -95, y: 0, amplitude: 1.2 },
-    { x: -100, y: 45, amplitude: 0.8 },
-    { x: 90, y: 50, amplitude: 0.9 },
-    { x: 95, y: 0, amplitude: 1.1 },
-    { x: 100, y: -45, amplitude: 1 }
+    { x: -90, y: -50, amplitude: 1, frequency: 0.3 },
+    { x: -95, y: 0, amplitude: 1.2, frequency: 0.3 },
+    { x: -100, y: 45, amplitude: 0.8, frequency: 0.3 },
+    { x: 90, y: 50, amplitude: 0.9, frequency: 0.3 },
+    { x: 95, y: 0, amplitude: 1.1, frequency: 0.3 },
+    { x: 100, y: -45, amplitude: 1, frequency: 0.3 }
   ]);
   const [size, setSize] = useState(200);
   const [thickness, setThickness] = useState(2);
   const [resolution, setResolution] = useState(100);
   const [amplitude, setAmplitude] = useState(1);
-  const [frequency, setFrequency] = useState(0.3);
   const [waveCount, setWaveCount] = useState(3);
   const precision = 100;
 
   const addSource = () => {
-    setSources([...sources, { 
-      x: 0, 
-      y: 0, 
-      amplitude: 1
+    setSources([...sources, {
+      x: 0,
+      y: 0,
+      amplitude: 1,
+      frequency: 0.3
     }]);
   };
 
@@ -68,7 +111,7 @@ export default function RippleSTLGenerator() {
           
           // Multiple wave rings from this source
           for (let w = 0; w < waveCount; w++) {
-            z += amplitude * source.amplitude * Math.sin(distFromSource * frequency + w * Math.PI / waveCount);
+            z += amplitude * source.amplitude * Math.sin(distFromSource * source.frequency + w * Math.PI / waveCount);
           }
         });
         
@@ -107,7 +150,7 @@ export default function RippleSTLGenerator() {
           
           // Multiple wave rings from this source
           for (let w = 0; w < waveCount; w++) {
-            z += amplitude * source.amplitude * Math.sin(distFromSource * frequency + w * Math.PI / waveCount);
+            z += amplitude * source.amplitude * Math.sin(distFromSource * source.frequency + w * Math.PI / waveCount);
           }
         });
         
@@ -144,7 +187,7 @@ export default function RippleSTLGenerator() {
           
           // Multiple wave rings from this source
           for (let w = 0; w < waveCount; w++) {
-            z += amplitude * source.amplitude * Math.sin(distFromSource * frequency + w * Math.PI / waveCount);
+            z += amplitude * source.amplitude * Math.sin(distFromSource * source.frequency + w * Math.PI / waveCount);
           }
         });
         
@@ -711,137 +754,92 @@ export default function RippleSTLGenerator() {
                     )}
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div>
-                      <label className="block text-gray-600 mb-1">X: {source.x.toFixed(1)}</label>
-                      <input
-                        type="range"
-                        min={-size/2}
-                        max={size/2}
-                        step="1"
-                        value={source.x}
-                        onChange={(e) => updateSource(idx, 'x', Number(e.target.value))}
-                        className="w-full"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 mb-1">Y: {source.y.toFixed(1)}</label>
-                      <input
-                        type="range"
-                        min={-size/2}
-                        max={size/2}
-                        step="1"
-                        value={source.y}
-                        onChange={(e) => updateSource(idx, 'y', Number(e.target.value))}
-                        className="w-full"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 mb-1">Power: {source.amplitude.toFixed(1)}</label>
-                      <input
-                        type="range"
-                        min="0.1"
-                        max="2"
-                        step="0.1"
-                        value={source.amplitude}
-                        onChange={(e) => updateSource(idx, 'amplitude', Number(e.target.value))}
-                        className="w-full"
-                      />
-                    </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <NumberSlider
+                      label="X"
+                      min={-size/2}
+                      max={size/2}
+                      step={0.5}
+                      value={source.x}
+                      onChange={(v) => updateSource(idx, 'x', v)}
+                      compact
+                    />
+                    <NumberSlider
+                      label="Y"
+                      min={-size/2}
+                      max={size/2}
+                      step={0.5}
+                      value={source.y}
+                      onChange={(v) => updateSource(idx, 'y', v)}
+                      compact
+                    />
+                    <NumberSlider
+                      label="Power"
+                      min={0.1}
+                      max={2}
+                      step={0.1}
+                      value={source.amplitude}
+                      onChange={(v) => updateSource(idx, 'amplitude', v)}
+                      compact
+                    />
+                    <NumberSlider
+                      label="Frequency"
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      value={source.frequency}
+                      onChange={(v) => updateSource(idx, 'frequency', v)}
+                      compact
+                    />
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Surface Size: {size}mm
-            </label>
-            <input
-              type="range"
-              min="50"
-              max="200"
-              value={size}
-              onChange={(e) => setSize(Number(e.target.value))}
-              className="w-full"
-            />
-          </div>
+          <NumberSlider
+            label={`Surface Size: ${size}mm`}
+            min={50}
+            max={200}
+            value={size}
+            onChange={setSize}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Box Thickness: {thickness}mm
-            </label>
-            <input
-              type="range"
-              min="1"
-              max="10"
-              step="0.5"
-              value={thickness}
-              onChange={(e) => setThickness(Number(e.target.value))}
-              className="w-full"
-            />
-            <p className="text-xs text-gray-500 mt-1">Depth of the box below the rippled surface</p>
-          </div>
+          <NumberSlider
+            label={`Box Thickness: ${thickness}mm`}
+            min={1}
+            max={10}
+            step={0.5}
+            value={thickness}
+            onChange={setThickness}
+            hint="Depth of the box below the rippled surface"
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Resolution: {resolution} × {resolution}
-            </label>
-            <input
-              type="range"
-              min="20"
-              max="100"
-              value={resolution}
-              onChange={(e) => setResolution(Number(e.target.value))}
-              className="w-full"
-            />
-            <p className="text-xs text-gray-500 mt-1">Higher resolution = smoother surface (larger file)</p>
-          </div>
+          <NumberSlider
+            label={`Resolution: ${resolution} × ${resolution}`}
+            min={20}
+            max={100}
+            value={resolution}
+            onChange={setResolution}
+            hint="Higher resolution = smoother surface (larger file)"
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Wave Amplitude: {amplitude}mm
-            </label>
-            <input
-              type="range"
-              min="1"
-              max="20"
-              step="0.5"
-              value={amplitude}
-              onChange={(e) => setAmplitude(Number(e.target.value))}
-              className="w-full"
-            />
-          </div>
+          <NumberSlider
+            label={`Wave Amplitude: ${amplitude}mm`}
+            min={1}
+            max={20}
+            step={0.5}
+            value={amplitude}
+            onChange={setAmplitude}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Wave Frequency: {frequency.toFixed(2)}
-            </label>
-            <input
-              type="range"
-              min="0.1"
-              max="1"
-              step="0.05"
-              value={frequency}
-              onChange={(e) => setFrequency(Number(e.target.value))}
-              className="w-full"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Number of Wave Rings: {waveCount}
-            </label>
-            <input
-              type="range"
-              min="1"
-              max="10"
-              value={waveCount}
-              onChange={(e) => setWaveCount(Number(e.target.value))}
-              className="w-full"
-            />
-          </div>
+          <NumberSlider
+            label={`Number of Wave Rings: ${waveCount}`}
+            min={1}
+            max={10}
+            value={waveCount}
+            onChange={setWaveCount}
+          />
         </div>
 
         <button
